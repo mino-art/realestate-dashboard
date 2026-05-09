@@ -1,0 +1,1679 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="전국 5개 권역 대장 vs 비대장 아파트 양극화 모니터링 — 톨이토리">
+  <title>부동산 실시간 가격 모니터링 -톨이토리-</title>
+
+  <!-- 폰트: Noto Serif KR + JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@300;400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* ==========================================
+       CSS 변수 — 에디토리얼 매거진 팔레트
+       ========================================== */
+    :root {
+      --bg:          #f5f3ee;
+      --bg-alt:      #ede9e0;
+      --bg-card:     #ffffff;
+      --ink:         #0a0a0a;
+      --ink-2:       #2a2a2a;
+      --ink-3:       #5a5450;
+      --ink-4:       #8a8070;
+      --red:         #c8201c;
+      --red-light:   rgba(200, 32, 28, 0.08);
+      --blue:        #1e4a8c;
+      --blue-light:  rgba(30, 74, 140, 0.08);
+      --gold:        #b8923a;
+      --gold-light:  rgba(184, 146, 58, 0.08);
+      --rule:        rgba(10, 10, 10, 0.10);
+      --rule-dark:   rgba(10, 10, 10, 0.18);
+      --serif:       'Noto Serif KR', 'Noto Serif', Georgia, serif;
+      --mono:        'JetBrains Mono', 'Courier New', monospace;
+    }
+
+    /* 기본 리셋 */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--serif);
+      font-size: 16px;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ==========================================
+       레이아웃
+       ========================================== */
+    .container {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    .rule        { border: none; border-top: 1px solid var(--rule); }
+    .rule--thick { border-top: 3px solid var(--ink); }
+    .rule--dbl   { border-top: 3px double var(--ink); }
+
+    /* ==========================================
+       헤더
+       ========================================== */
+    .header { padding-top: 28px; }
+
+    .header__top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .header__meta {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--ink-3);
+      letter-spacing: 0.05em;
+      line-height: 1.9;
+    }
+
+    .btn-refresh {
+      flex-shrink: 0;
+      background: var(--ink);
+      color: var(--bg);
+      border: none;
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 8px 18px;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .btn-refresh:hover    { background: var(--ink-2); }
+    .btn-refresh:disabled { background: var(--ink-4); cursor: not-allowed; }
+
+    .header__title-block { padding: 22px 0 20px; }
+
+    .header__eyebrow {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--red);
+      margin-bottom: 10px;
+    }
+
+    .header__title {
+      font-size: clamp(30px, 5.5vw, 56px);
+      font-weight: 700;
+      line-height: 1.08;
+      letter-spacing: -0.025em;
+      margin-bottom: 12px;
+    }
+
+    .header__subtitle {
+      font-size: clamp(13px, 1.8vw, 15px);
+      font-weight: 300;
+      color: var(--ink-3);
+      max-width: 560px;
+      line-height: 1.7;
+    }
+
+    /* ==========================================
+       로딩
+       ========================================== */
+    .loading { display: none; padding: 60px 0; text-align: center; }
+    .loading.active { display: block; }
+
+    .loading__spinner {
+      width: 28px; height: 28px;
+      border: 2px solid var(--rule-dark);
+      border-top-color: var(--ink);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto 18px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading__pct {
+      font-family: var(--mono);
+      font-size: 28px;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 6px;
+    }
+
+    .loading__msg {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink-3);
+      margin-bottom: 16px;
+    }
+
+    .progress-bar {
+      width: 220px; height: 2px;
+      background: var(--rule-dark);
+      margin: 0 auto;
+      overflow: hidden;
+    }
+    .progress-bar__fill {
+      height: 100%;
+      background: var(--ink);
+      transition: width 0.25s ease;
+      width: 0%;
+    }
+
+    /* ==========================================
+       에러 박스
+       ========================================== */
+    .error-box { display: none; padding: 36px; border: 1px solid var(--rule-dark); text-align: center; margin: 32px 0; }
+    .error-box.active { display: block; }
+    .error-box__icon  { font-size: 28px; margin-bottom: 12px; color: var(--gold); }
+    .error-box__title { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
+    .error-box__text  { font-size: 13px; color: var(--ink-3); margin-bottom: 20px; white-space: pre-line; }
+
+    .btn-outline {
+      background: none;
+      border: 1px solid var(--ink);
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      padding: 10px 24px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-outline:hover { background: var(--ink); color: var(--bg); }
+
+    /* ==========================================
+       히어로 통계
+       ========================================== */
+    .hero { padding: 36px 0; }
+
+    .hero__grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border-top: 1px solid var(--rule);
+      border-left: 1px solid var(--rule);
+    }
+
+    .hero__stat {
+      padding: 22px 24px;
+      border-right: 1px solid var(--rule);
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .hero__stat-label {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-4);
+      margin-bottom: 10px;
+    }
+
+    .hero__stat-value {
+      font-family: var(--mono);
+      font-size: clamp(22px, 3.5vw, 38px);
+      font-weight: 600;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+    .hero__stat-value.red  { color: var(--red); }
+    .hero__stat-value.blue { color: var(--blue); }
+    .hero__stat-value.gold { color: var(--gold); }
+
+    .hero__stat-sub {
+      font-size: 11px;
+      color: var(--ink-3);
+      line-height: 1.5;
+    }
+
+    @media (max-width: 600px) {
+      .hero__grid { grid-template-columns: 1fr; }
+    }
+
+    /* ==========================================
+       탭 네비게이션
+       ========================================== */
+    .tabs-section { padding-top: 28px; }
+
+    .tabs-nav {
+      display: flex;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      border-bottom: 2px solid var(--ink);
+    }
+    .tabs-nav::-webkit-scrollbar { display: none; }
+
+    .tab-btn {
+      flex-shrink: 0;
+      background: none;
+      border: none;
+      font-family: var(--serif);
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--ink-3);
+      padding: 11px 20px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: color 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+    .tab-btn:hover  { color: var(--ink); }
+    .tab-btn.active { color: var(--ink); font-weight: 600; border-bottom-color: var(--red); }
+
+    /* ==========================================
+       권역 상세
+       ========================================== */
+    .region-detail { padding: 32px 0; }
+
+    .region-header { margin-bottom: 28px; }
+
+    .region-header__eyebrow {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-4);
+      margin-bottom: 6px;
+    }
+
+    .region-header__title { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+    .region-header__sub   { font-size: 12px; color: var(--ink-3); }
+
+    /* 차트 그리드 */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 680px) { .charts-grid { grid-template-columns: 1fr; } }
+
+    .chart-card {
+      background: var(--bg-card);
+      border: 1px solid var(--rule-dark);
+      padding: 18px 18px 14px;
+    }
+
+    .chart-card__eyebrow {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--ink-4);
+      margin-bottom: 2px;
+    }
+
+    .chart-card__title { font-size: 13px; font-weight: 600; margin-bottom: 14px; }
+
+    .chart-card canvas { display: block; }
+
+    /* 지표 카드 */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .metric-card {
+      background: var(--bg-card);
+      border: 1px solid var(--rule-dark);
+      padding: 16px;
+    }
+
+    .metric-card__badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.06em;
+      margin-bottom: 8px;
+    }
+
+    .tier-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .tier-dot--flagship { background: var(--red); }
+    .tier-dot--non      { background: var(--ink-4); }
+
+    .metric-card__name  { font-size: 13px; font-weight: 600; margin-bottom: 12px; line-height: 1.4; }
+
+    .metric-card__row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 11px;
+      color: var(--ink-3);
+      margin-bottom: 5px;
+    }
+
+    .metric-card__val {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+    .metric-card__val.pos { color: var(--red); }
+    .metric-card__val.neg { color: var(--blue); }
+
+    /* 상관계수 섹션 */
+    .corr-box {
+      background: var(--bg-alt);
+      border: 1px solid var(--rule-dark);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .corr-box__title {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-4);
+      margin-bottom: 18px;
+    }
+
+    .corr-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .corr-item__period { font-size: 11px; color: var(--ink-3); margin-bottom: 4px; }
+    .corr-item__value  {
+      font-family: var(--mono);
+      font-size: 30px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .corr-item__value.sync   { color: var(--blue); }
+    .corr-item__value.decouple { color: var(--gold); }
+    .corr-item__desc { font-size: 11px; color: var(--ink-3); }
+
+    /* 데이터 테이블 */
+    .table-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      border: 1px solid var(--rule-dark);
+      margin-bottom: 20px;
+    }
+
+    .data-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 540px; }
+
+    .data-table th {
+      font-family: var(--mono);
+      font-size: 8px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--ink-4);
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--rule-dark);
+      background: var(--bg-alt);
+      white-space: nowrap;
+    }
+
+    .data-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--rule);
+      vertical-align: middle;
+    }
+
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tbody tr:hover td { background: var(--bg-alt); }
+    .data-table .num { font-family: var(--mono); font-size: 11px; text-align: right; }
+
+    .tier-tag {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 8px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      padding: 2px 7px;
+    }
+    .tier-tag--flagship { background: var(--red); color: white; }
+    .tier-tag--non      { background: var(--ink-4); color: white; }
+
+    /* ==========================================
+       종합 인사이트
+       ========================================== */
+    .insights { padding: 32px 0; }
+
+    .sec-header { margin-bottom: 22px; }
+    .sec-header__eyebrow {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-4);
+      margin-bottom: 6px;
+    }
+    .sec-header__title { font-size: 20px; font-weight: 700; }
+
+    .insights-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+    .insights-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 620px; }
+
+    .insights-table th {
+      font-family: var(--mono);
+      font-size: 8px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--ink-4);
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 2px solid var(--ink);
+      white-space: nowrap;
+    }
+
+    .insights-table td { padding: 11px 14px; border-bottom: 1px solid var(--rule); }
+    .insights-table tr:last-child td { border-bottom: none; }
+    .insights-table tbody tr { cursor: pointer; transition: background 0.1s; }
+    .insights-table tbody tr:hover td { background: var(--bg-alt); }
+    .insights-table .num { font-family: var(--mono); font-size: 11px; text-align: right; }
+
+    .bar-mini { height: 4px; background: var(--rule-dark); min-width: 80px; }
+    .bar-mini__fill { height: 100%; background: var(--red); transition: width 0.4s; }
+
+    /* ==========================================
+       푸터
+       ========================================== */
+    .footer { padding: 28px 0 36px; }
+
+    .footer__inner {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-end;
+    }
+
+    .footer__credits {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--ink-4);
+      letter-spacing: 0.03em;
+      line-height: 2;
+    }
+
+    .footer__credits a { color: var(--ink-3); text-decoration: underline; }
+
+    .footer__brand-label {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--ink-4);
+      margin-bottom: 4px;
+    }
+    .footer__brand-name { font-size: 20px; font-weight: 700; }
+
+    /* ==========================================
+       유틸리티
+       ========================================== */
+    .no-data {
+      padding: 40px;
+      text-align: center;
+      color: var(--ink-3);
+      font-size: 13px;
+      border: 1px dashed var(--rule-dark);
+      margin-top: 16px;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-up { animation: fadeUp 0.3s ease; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ==========================================
+       헤더
+       ========================================== -->
+  <header class="header">
+    <div class="header__top">
+      <div class="header__meta">
+        <div id="lastUpdated">LAST UPDATED: —</div>
+        <div>DATA: 국토교통부 실거래가 공개시스템</div>
+      </div>
+      <button class="btn-refresh" id="btnRefresh" onclick="onRefresh()">↺ 수동 갱신</button>
+    </div>
+    <hr class="rule rule--thick">
+    <div class="header__title-block">
+      <div class="header__eyebrow">부동산 데이터 저널리즘 · Real Estate Analytics</div>
+      <h1 class="header__title">부동산 실시간<br>가격 모니터링</h1>
+      <p class="header__subtitle">
+        전국 5개 핵심 권역 대장 아파트 vs 비대장 아파트 가격 격차를
+        2017년 1월부터 실시간으로 추적합니다.
+        전용면적 80–90㎡(약 34평형) 기준.
+      </p>
+    </div>
+    <hr class="rule">
+  </header>
+
+  <!-- ==========================================
+       로딩 오버레이
+       ========================================== -->
+  <div class="loading" id="loadingEl">
+    <div class="loading__spinner"></div>
+    <div class="loading__pct" id="loadPct">0%</div>
+    <div class="loading__msg" id="loadMsg">API 연결 중...</div>
+    <div class="progress-bar">
+      <div class="progress-bar__fill" id="progressFill"></div>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       에러 박스
+       ========================================== -->
+  <div class="error-box" id="errorBox">
+    <div class="error-box__icon">⚠</div>
+    <div class="error-box__title">데이터를 불러오지 못했습니다</div>
+    <div class="error-box__text" id="errorMsg">API 호출 실패. CORS 이슈일 수 있습니다.</div>
+    <button class="btn-outline" onclick="onRefresh()">다시 시도</button>
+  </div>
+
+  <!-- ==========================================
+       메인 콘텐츠
+       ========================================== -->
+  <main id="mainContent" style="display:none">
+
+    <!-- 히어로 통계 -->
+    <section class="hero">
+      <div class="hero__grid" id="heroGrid"><!-- JS 렌더 --></div>
+    </section>
+
+    <hr class="rule">
+
+    <!-- 권역 탭 + 상세 분석 -->
+    <section class="tabs-section">
+      <nav class="tabs-nav" id="tabsNav"><!-- JS 렌더 --></nav>
+      <div id="regionDetail"><!-- JS 렌더 --></div>
+    </section>
+
+    <hr class="rule">
+
+    <!-- 종합 인사이트 -->
+    <section class="insights">
+      <div class="sec-header">
+        <div class="sec-header__eyebrow">Comparative Analysis</div>
+        <h2 class="sec-header__title">5개 권역 종합 비교</h2>
+      </div>
+      <div class="insights-wrap">
+        <table class="insights-table" id="insightsTable"><!-- JS 렌더 --></table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==========================================
+       푸터
+       ========================================== -->
+  <footer class="footer">
+    <hr class="rule rule--dbl" style="margin-bottom:24px">
+    <div class="footer__inner">
+      <div class="footer__credits">
+        <div>데이터 출처: <a href="https://rtms.molit.go.kr" target="_blank" rel="noopener">국토교통부 실거래가 공개시스템</a></div>
+        <div>갱신 주기: 매월 말일 기준 (API 제공 기준)</div>
+        <div>분석 기준: 전용면적 80–90㎡, 2017년 1월 ~ 현재</div>
+        <div style="margin-top:6px; color: var(--ink-4)">본 자료는 참고 목적이며 투자 조언이 아닙니다.</div>
+      </div>
+      <div>
+        <div class="footer__brand-label">Operated By</div>
+        <div class="footer__brand-name">톨이토리</div>
+      </div>
+    </div>
+  </footer>
+
+</div><!-- /container -->
+
+<!-- ==========================================
+     JavaScript
+     ========================================== -->
+<script>
+'use strict';
+
+/* ==========================================
+   설정 상수
+   ========================================== */
+
+// 국토교통부 실거래가 API 키 (Decoding 키 — URL 인코딩 자동 처리)
+const API_KEY   = 'ee4a890a5495cb2f1eb2ee58fbb7629a7764ed8647434f2a506dbf6f4007c2ad';
+const BASE_URL  = 'https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev';
+
+// 로컬스토리지 캐시 설정
+const CACHE_KEY      = 'realestate_polarization_v4';
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24시간 (ms)
+
+// API 호출 간격 (호출 한도 보호)
+const API_DELAY_MS = 80;
+const START_YM     = '201901'; // 시작 연도 (2019~현재 = 약 88개월 × 5권역 = 440회)
+
+// CORS 프록시 목록 (직접 → allorigins → corsproxy 순 시도)
+const CORS_PROXIES = [
+  '',                                    // 0: 직접 호출
+  'https://api.allorigins.win/raw?url=', // 1: allorigins 프록시
+  'https://corsproxy.io/?',             // 2: corsproxy 프록시
+];
+
+/* ==========================================
+   분석 대상 — 5개 권역
+   단지 추가/변경: 아래 TARGETS 객체만 수정
+   ========================================== */
+const TARGETS = {
+  서울_송파: {
+    code: '11710',          // 서울 송파구 법정동코드
+    name: '서울 송파구',
+    label: '서울 송파',
+    apartments: [
+      { name: '잠실엘스',     tier: '대장'   },
+      { name: '잠실리센츠',   tier: '비대장' },
+      { name: '잠실트리지움', tier: '비대장' },
+    ],
+  },
+  판교: {
+    code: '41135',          // 경기 성남시 분당구
+    name: '성남 분당구',
+    label: '판교',
+    apartments: [
+      { name: '판교푸르지오월드마크', tier: '대장'   },
+      { name: '봇들마을',             tier: '비대장' },
+      { name: '백현마을',             tier: '비대장' },
+    ],
+  },
+  대전_둔산: {
+    code: '30170',          // 대전 서구
+    name: '대전 서구',
+    label: '대전 둔산',
+    apartments: [
+      { name: '크로바', tier: '대장'   },
+      { name: '한가람', tier: '비대장' },
+      { name: '국화',   tier: '비대장' },
+    ],
+  },
+  부산_해운대: {
+    code: '26350',          // 부산 해운대구
+    name: '부산 해운대구',
+    label: '부산 해운대',
+    apartments: [
+      { name: '두산위브더제니스', tier: '대장'   },
+      { name: '아이파크',         tier: '비대장' },
+      { name: '자이',             tier: '비대장' },
+    ],
+  },
+  천안_불당: {
+    code: '44131',          // 충남 천안시 서북구
+    name: '천안 서북구',
+    label: '천안 불당',
+    apartments: [
+      { name: '지웰더샵',         tier: '대장'   },
+      { name: '호반써밋',         tier: '비대장' },
+      { name: '호반써밋센터시티', tier: '비대장' },
+    ],
+  },
+};
+
+/* ==========================================
+   앱 전역 상태
+   ========================================== */
+const state = {
+  data:          {},         // { 권역키: { 단지명: { 'YYYYMM': 평균가(만원) } } }
+  activeRegion:  '서울_송파',
+  charts:        {},         // 현재 활성 Chart 인스턴스
+  totalCalls:    0,
+  loadedCalls:   0,
+  activeProxy:   0,          // 현재 사용 중인 프록시 인덱스
+};
+
+/* ==========================================
+   유틸리티 함수
+   ========================================== */
+
+// 비동기 딜레이
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// 만원 → 표시용 (13억, 2.5억, 5,000만 형태)
+function fmtPrice(manwon) {
+  if (!manwon || manwon <= 0) return '—';
+  if (manwon >= 10000) {
+    const uk = manwon / 10000;
+    return (Number.isInteger(uk) ? uk : uk.toFixed(1)) + '억';
+  }
+  return manwon.toLocaleString('ko') + '만';
+}
+
+// 만원 → 억원 숫자
+function toUk(manwon) {
+  return Math.round(manwon / 10000 * 10) / 10;
+}
+
+// 퍼센트 포맷 (+12.3%)
+function fmtPct(v) {
+  if (v == null || isNaN(v)) return '—';
+  return (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+}
+
+// 상관계수 포맷
+function fmtCorr(v) {
+  if (v == null || isNaN(v)) return 'N/A';
+  return v.toFixed(3);
+}
+
+// YYYYMM → 'YYYY.MM'
+function fmtYm(ym) {
+  return ym.slice(0, 4) + '.' + ym.slice(4);
+}
+
+// 현재 YYYYMM 반환
+function nowYm() {
+  const d = new Date();
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// YYYYMM 범위 배열 생성
+function rangeMonths(fromYm, toYm) {
+  const res = [];
+  let y = +fromYm.slice(0, 4), m = +fromYm.slice(4);
+  const ey = +toYm.slice(0, 4), em = +toYm.slice(4);
+  while (y < ey || (y === ey && m <= em)) {
+    res.push(`${y}${String(m).padStart(2, '0')}`);
+    if (++m > 12) { m = 1; y++; }
+  }
+  return res;
+}
+
+// 배열 평균 (null 제외)
+function mean(arr) {
+  const valid = arr.filter(v => v != null && !isNaN(v));
+  if (!valid.length) return null;
+  return Math.round(valid.reduce((a, b) => a + b, 0) / valid.length);
+}
+
+// Pearson 상관계수
+function pearson(xArr, yArr) {
+  const n = Math.min(xArr.length, yArr.length);
+  if (n < 3) return null;
+  const mx = xArr.slice(0, n).reduce((a, b) => a + b, 0) / n;
+  const my = yArr.slice(0, n).reduce((a, b) => a + b, 0) / n;
+  let num = 0, sdx = 0, sdy = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = xArr[i] - mx, dy = yArr[i] - my;
+    num += dx * dy; sdx += dx * dx; sdy += dy * dy;
+  }
+  return (sdx === 0 || sdy === 0) ? null : num / Math.sqrt(sdx * sdy);
+}
+
+/* ==========================================
+   캐시 관리
+   ========================================== */
+
+function loadCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (Date.now() - obj.ts > CACHE_DURATION) return null; // 24시간 만료
+    return obj;
+  } catch { return null; }
+}
+
+function saveCache(data) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
+  } catch (e) {
+    console.warn('[캐시] 저장 실패:', e.message);
+  }
+}
+
+function loadStaleCache() {
+  // 만료된 캐시라도 폴백으로 반환
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
+/* ==========================================
+   API 호출 함수
+   ========================================== */
+
+// API URL 생성 (serviceKey 인코딩 여부 파라미터화)
+function buildApiUrl(lawdCd, dealYmd, encoded = false) {
+  const key = encoded ? encodeURIComponent(API_KEY) : API_KEY;
+  return `${BASE_URL}?serviceKey=${key}&LAWD_CD=${lawdCd}&DEAL_YMD=${dealYmd}&numOfRows=1000&pageNo=1`;
+}
+
+// 프록시 적용 URL 반환
+function withProxy(url, proxyIdx) {
+  if (proxyIdx === 0) return url;
+  return CORS_PROXIES[proxyIdx] + encodeURIComponent(url);
+}
+
+// XML 파싱 → 레코드 배열
+function parseXML(xmlText) {
+  const parser = new DOMParser();
+  const xml    = parser.parseFromString(xmlText, 'application/xml');
+
+  // 파싱 오류 확인
+  if (xml.querySelector('parsererror')) throw new Error('XML 파싱 오류');
+
+  // API 오류 코드 확인
+  const resultCode = xml.querySelector('resultCode')?.textContent?.trim();
+  if (resultCode && resultCode !== '00' && resultCode !== '0000') {
+    const msg = xml.querySelector('resultMsg, errMsg')?.textContent?.trim();
+    throw new Error(`API 오류 ${resultCode}: ${msg}`);
+  }
+
+  const items = xml.querySelectorAll('item');
+  const rows  = [];
+
+  for (const item of items) {
+    const aptNm      = item.querySelector('aptNm')?.textContent?.trim()      || '';
+    const excluStr   = item.querySelector('excluUseAr')?.textContent?.trim() || '0';
+    const amountStr  = item.querySelector('dealAmount')?.textContent?.trim() || '0';
+    const yearStr    = item.querySelector('dealYear')?.textContent?.trim()   || '';
+    const monthStr   = item.querySelector('dealMonth')?.textContent?.trim()  || '';
+
+    const excluUseAr = parseFloat(excluStr);
+    const dealAmount = parseInt(amountStr.replace(/,/g, ''), 10);
+
+    if (!aptNm || !yearStr || !monthStr || dealAmount <= 0) continue;
+
+    rows.push({ aptNm, excluUseAr, dealAmount, dealYear: yearStr, dealMonth: monthStr });
+  }
+
+  return rows;
+}
+
+// 한 달치 데이터 fetch — 프록시·인코딩 자동 시도
+async function fetchMonth(lawdCd, dealYmd) {
+  // 시도 순서: [직접/raw], [직접/encoded], [allorigins/raw], [allorigins/encoded], [corsproxy/raw]
+  const attempts = [
+    { url: buildApiUrl(lawdCd, dealYmd, false), proxy: state.activeProxy },
+    { url: buildApiUrl(lawdCd, dealYmd, true),  proxy: state.activeProxy },
+    { url: buildApiUrl(lawdCd, dealYmd, false), proxy: 1 },
+    { url: buildApiUrl(lawdCd, dealYmd, true),  proxy: 1 },
+    { url: buildApiUrl(lawdCd, dealYmd, false), proxy: 2 },
+  ];
+
+  // 이미 성공한 프록시가 있으면 그것을 우선 배치
+  if (state.activeProxy !== 0) {
+    attempts.unshift({ url: buildApiUrl(lawdCd, dealYmd, false), proxy: state.activeProxy });
+  }
+
+  const seen = new Set();
+  let lastErr = null;
+
+  for (const { url, proxy } of attempts) {
+    const key = `${proxy}::${url.slice(-30)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    try {
+      const finalUrl = withProxy(url, proxy);
+      const resp = await fetch(finalUrl, { signal: AbortSignal.timeout(12000) });
+      if (!resp.ok) continue;
+
+      const text = await resp.text();
+
+      // 유효한 XML인지 확인 (HTML 에러 페이지 차단)
+      if (!text.includes('<') || text.trimStart().startsWith('<!DOCTYPE')) continue;
+
+      const rows = parseXML(text);
+
+      // 성공 → 이 프록시 기억
+      state.activeProxy = proxy;
+      return rows;
+
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+
+  // 빈 달 (거래 없음)은 정상 — 오류 throw하지 않고 빈 배열 반환
+  return [];
+}
+
+/* ==========================================
+   전체 데이터 수집
+   ========================================== */
+
+async function fetchAllData() {
+  const months     = rangeMonths(START_YM, nowYm());
+  const regionKeys = Object.keys(TARGETS);
+
+  state.totalCalls  = regionKeys.length * months.length;
+  state.loadedCalls = 0;
+  updateProgress();
+
+  // 5개 권역 동시 병렬 처리 — 각 권역은 내부적으로 월별 순차 호출
+  async function fetchRegion(rk) {
+    const region  = TARGETS[rk];
+    const rawRows = [];
+
+    for (const ym of months) {
+      try {
+        const rows = await fetchMonth(region.code, ym);
+        rawRows.push(...rows);
+      } catch (e) {
+        console.warn(`[${rk}] ${ym} 오류:`, e.message);
+      }
+
+      state.loadedCalls++;
+      updateProgress();
+      await sleep(API_DELAY_MS);
+    }
+
+    return { rk, rawRows };
+  }
+
+  // Promise.all 로 5개 권역 동시 실행
+  const settled = await Promise.all(regionKeys.map(fetchRegion));
+
+  const result = {};
+  for (const { rk, rawRows } of settled) {
+    result[rk] = processRegion(rk, rawRows);
+  }
+
+  return result;
+}
+
+/* ==========================================
+   데이터 정제
+   ========================================== */
+
+// 권역 원시 데이터 → { 단지명: { YYYYMM: 평균가(만원) } }
+function processRegion(regionKey, rawRows) {
+  const region = TARGETS[regionKey];
+  const out    = {};
+
+  for (const apt of region.apartments) {
+    // 단지명 부분 일치 + 전용면적 80–90㎡ 필터
+    // 주의: '자이' 같은 범용 이름은 동일 구 내 다른 단지도 포함될 수 있음
+    const filtered = rawRows.filter(r =>
+      r.aptNm.includes(apt.name) &&
+      r.excluUseAr >= 80 &&
+      r.excluUseAr <= 90
+    );
+
+    // 월별 그룹핑
+    const monthly = {};
+    for (const r of filtered) {
+      const ym = `${r.dealYear}${String(+r.dealMonth).toString().padStart(2, '0')}`;
+      if (!monthly[ym]) monthly[ym] = [];
+      monthly[ym].push(r.dealAmount);
+    }
+
+    // 월별 평균 계산
+    const avgByMonth = {};
+    for (const [ym, prices] of Object.entries(monthly)) {
+      avgByMonth[ym] = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length);
+    }
+
+    out[apt.name] = avgByMonth;
+  }
+
+  return out;
+}
+
+/* ==========================================
+   지표 계산 (5종)
+   ========================================== */
+
+function calcMetrics(regionKey) {
+  const region = TARGETS[regionKey];
+  const data   = state.data[regionKey];
+  if (!data) return null;
+
+  const flagship     = region.apartments.find(a => a.tier === '대장');
+  const nonFlagships = region.apartments.filter(a => a.tier === '비대장');
+
+  const fData = data[flagship.name] || {};
+
+  // 1) 전체 월 목록 (대장 기준, 정렬)
+  const allMonths = Object.keys(fData).sort();
+
+  // 2) 단지별 시계열 (모든 달 포함, 없는 달은 null)
+  const aptSeries = region.apartments.map(apt => ({
+    name:   apt.name,
+    tier:   apt.tier,
+    series: allMonths.map(m => (data[apt.name] || {})[m] ?? null),
+  }));
+
+  // 3) 비대장 평균 시계열
+  const nfAvgSeries = allMonths.map(m => {
+    const vals = nonFlagships.map(a => (data[a.name] || {})[m]).filter(v => v);
+    return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+  });
+
+  // 4) 격차 시계열 (대장 - 비대장 평균)
+  const gapSeries = allMonths.map((m, i) => {
+    const f = fData[m], nf = nfAvgSeries[i];
+    return (f && nf) ? f - nf : null;
+  });
+
+  // 5) 현재가 (최근 3개월 평균)
+  const recent3    = allMonths.slice(-3);
+  const curFlagship = mean(recent3.map(m => fData[m]).filter(Boolean));
+
+  // 6) 2021 고점 / 2022 저점
+  const peak2021 = peakInYear(fData, '2021');
+  const bot2022  = botInYear(fData, '2022');
+
+  // 7) 고점 회복률 / 저점 대비 상승률
+  const recoveryRate   = (peak2021 && curFlagship) ? (curFlagship / peak2021 - 1) * 100 : null;
+  const riseFromBottom = (bot2022  && curFlagship) ? (curFlagship / bot2022  - 1) * 100 : null;
+
+  // 8) 현재 격차
+  const currentGap = gapSeries.filter(v => v != null).at(-1) ?? null;
+
+  // 9) 상관계수: 동조화(2017-2019) vs 디커플링(2022-현재)
+  const corr17_19 = corrBetween(flagship, nonFlagships, data, '201701', '201912');
+  const corr22_now = corrBetween(flagship, nonFlagships, data, '202201', nowYm());
+
+  // 10) 단지별 세부 지표
+  const aptMetrics = region.apartments.map(apt => {
+    const d    = data[apt.name] || {};
+    const mths = Object.keys(d).sort();
+    const cur  = mean(mths.slice(-3).map(m => d[m]).filter(Boolean));
+    const peak = peakInYear(d, '2021');
+    const bot  = botInYear(d, '2022');
+    return {
+      name:     apt.name,
+      tier:     apt.tier,
+      current:  cur,
+      peak:     peak,
+      bottom:   bot,
+      recovery: (peak && cur) ? (cur / peak - 1) * 100 : null,
+      rise:     (bot  && cur) ? (cur / bot  - 1) * 100 : null,
+      months:   mths.length,
+    };
+  });
+
+  return {
+    allMonths,
+    aptSeries,
+    nfAvgSeries,
+    gapSeries,
+    curFlagship,
+    peak2021,
+    bot2022,
+    recoveryRate,
+    riseFromBottom,
+    currentGap,
+    corr17_19,
+    corr22_now,
+    aptMetrics,
+  };
+}
+
+// 특정 연도 최대값
+function peakInYear(d, yearStr) {
+  const vals = Object.entries(d)
+    .filter(([m]) => m.startsWith(yearStr))
+    .map(([, v]) => v);
+  return vals.length ? Math.max(...vals) : null;
+}
+
+// 특정 연도 최소값
+function botInYear(d, yearStr) {
+  const vals = Object.entries(d)
+    .filter(([m]) => m.startsWith(yearStr))
+    .map(([, v]) => v);
+  return vals.length ? Math.min(...vals) : null;
+}
+
+// 특정 기간 상관계수
+function corrBetween(flagship, nonFlagships, data, fromYm, toYm) {
+  const months = rangeMonths(fromYm, toYm);
+  const fData  = data[flagship.name] || {};
+  const nfAvg  = months.map(m => {
+    const vals = nonFlagships.map(a => (data[a.name] || {})[m]).filter(v => v);
+    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  });
+  const fx = [], fy = [];
+  months.forEach((m, i) => {
+    if (fData[m] && nfAvg[i]) { fx.push(fData[m]); fy.push(nfAvg[i]); }
+  });
+  return pearson(fx, fy);
+}
+
+/* ==========================================
+   UI 상태 함수
+   ========================================== */
+
+function updateProgress() {
+  const pct = state.totalCalls > 0
+    ? Math.round(state.loadedCalls / state.totalCalls * 100)
+    : 0;
+  const pctEl = document.getElementById('loadPct');
+  const msgEl = document.getElementById('loadMsg');
+  const barEl = document.getElementById('progressFill');
+  if (pctEl) pctEl.textContent = pct + '%';
+  if (msgEl) msgEl.textContent = `데이터 수집 중... ${state.loadedCalls} / ${state.totalCalls}`;
+  if (barEl) barEl.style.width = pct + '%';
+}
+
+function showLoading() {
+  document.getElementById('loadingEl').classList.add('active');
+  document.getElementById('errorBox').classList.remove('active');
+  document.getElementById('mainContent').style.display = 'none';
+  document.getElementById('btnRefresh').disabled = true;
+}
+
+function hideLoading() {
+  document.getElementById('loadingEl').classList.remove('active');
+  document.getElementById('btnRefresh').disabled = false;
+}
+
+function showError(msg) {
+  document.getElementById('errorMsg').textContent = msg;
+  document.getElementById('errorBox').classList.add('active');
+}
+
+function showMain() {
+  document.getElementById('mainContent').style.display = 'block';
+}
+
+function updateLastUpdated(ts) {
+  const d = new Date(ts);
+  const s = [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, '0'),
+    String(d.getDate()).padStart(2, '0'),
+  ].join('-') + ' ' + [
+    String(d.getHours()).padStart(2, '0'),
+    String(d.getMinutes()).padStart(2, '0'),
+  ].join(':');
+  document.getElementById('lastUpdated').textContent = 'LAST UPDATED: ' + s;
+}
+
+/* ==========================================
+   히어로 통계 렌더링
+   ========================================== */
+
+function renderHero() {
+  // 모든 권역 메트릭 수집
+  const allMetrics = Object.keys(TARGETS)
+    .map(rk => ({ rk, m: calcMetrics(rk) }))
+    .filter(x => x.m);
+
+  // 최대 격차 권역
+  let maxGapRk = '', maxGap = 0;
+  for (const { rk, m } of allMetrics) {
+    if (m.currentGap && m.currentGap > maxGap) {
+      maxGap = m.currentGap; maxGapRk = rk;
+    }
+  }
+
+  // 5개 권역 평균 고점 회복률
+  const recs = allMetrics.map(x => x.m.recoveryRate).filter(v => v != null && !isNaN(v));
+  const avgRec = recs.length ? recs.reduce((a, b) => a + b, 0) / recs.length : null;
+
+  // 서울 송파 현재 격차 (대표)
+  const seoulM = calcMetrics('서울_송파');
+
+  document.getElementById('heroGrid').innerHTML = `
+    <div class="hero__stat">
+      <div class="hero__stat-label">격차 최대 권역</div>
+      <div class="hero__stat-value red">${maxGapRk ? TARGETS[maxGapRk].label : '—'}</div>
+      <div class="hero__stat-sub">
+        현재 격차 ${maxGap ? toUk(maxGap).toFixed(1) + '억원' : '—'}<br>
+        대장 vs 비대장 평균 (34평 기준)
+      </div>
+    </div>
+    <div class="hero__stat">
+      <div class="hero__stat-label">서울 송파 현재 격차</div>
+      <div class="hero__stat-value blue">${seoulM?.currentGap ? toUk(seoulM.currentGap).toFixed(1) + '억' : '—'}</div>
+      <div class="hero__stat-sub">
+        잠실엘스 vs 비대장 평균<br>
+        전용 84㎡ 기준
+      </div>
+    </div>
+    <div class="hero__stat">
+      <div class="hero__stat-label">평균 고점 회복률</div>
+      <div class="hero__stat-value gold">${avgRec != null ? fmtPct(avgRec) : '—'}</div>
+      <div class="hero__stat-sub">
+        5개 권역 대장 단지 기준<br>
+        2021년 고점 대비 현재가
+      </div>
+    </div>
+  `;
+}
+
+/* ==========================================
+   탭 렌더링
+   ========================================== */
+
+function renderTabs() {
+  document.getElementById('tabsNav').innerHTML =
+    Object.entries(TARGETS).map(([key, r]) =>
+      `<button class="tab-btn ${key === state.activeRegion ? 'active' : ''}"
+         onclick="switchTab('${key}', this)">${r.label}</button>`
+    ).join('');
+}
+
+function switchTab(rk, btn) {
+  if (rk === state.activeRegion) return;
+  state.activeRegion = rk;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  destroyCharts();
+  renderRegionDetail(rk);
+}
+
+function destroyCharts() {
+  for (const c of Object.values(state.charts)) c?.destroy();
+  state.charts = {};
+}
+
+/* ==========================================
+   권역 상세 렌더링
+   ========================================== */
+
+function renderRegionDetail(rk) {
+  const region  = TARGETS[rk];
+  const metrics = calcMetrics(rk);
+  const el      = document.getElementById('regionDetail');
+
+  if (!metrics || !metrics.allMonths.length) {
+    el.innerHTML = `<div class="no-data"><strong>${region.label}</strong> 데이터가 없습니다.<br>API 응답을 확인해주세요.</div>`;
+    return;
+  }
+
+  const flagship     = region.apartments.find(a => a.tier === '대장');
+  const nonFlagships = region.apartments.filter(a => a.tier === '비대장');
+
+  el.innerHTML = `
+    <div class="region-detail fade-up">
+
+      <div class="region-header">
+        <div class="region-header__eyebrow">${region.name} &nbsp;·&nbsp; ${metrics.allMonths.length}개월 데이터</div>
+        <h2 class="region-header__title">${region.label} 양극화 분석</h2>
+        <p class="region-header__sub">
+          <span style="color:var(--red)">▮</span> 대장: <strong>${flagship.name}</strong>
+          &nbsp;&nbsp;
+          <span style="color:var(--ink-4)">▮</span> 비대장: ${nonFlagships.map(a => a.name).join(', ')}
+          &nbsp;|&nbsp; 전용 80–90㎡ 기준
+        </p>
+      </div>
+
+      <!-- 차트 2개 -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-card__eyebrow">Price Trend</div>
+          <div class="chart-card__title">단지별 월별 시세 추이</div>
+          <canvas id="chartTrend" height="220"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card__eyebrow">Price Gap</div>
+          <div class="chart-card__title">대장 vs 비대장 격차 추이</div>
+          <canvas id="chartGap" height="220"></canvas>
+        </div>
+      </div>
+
+      <!-- 지표 카드 -->
+      <div class="metrics-grid">
+        ${metrics.aptMetrics.map(apt => `
+          <div class="metric-card">
+            <div class="metric-card__badge">
+              <span class="tier-dot tier-dot--${apt.tier === '대장' ? 'flagship' : 'non'}"></span>
+              <span style="color:var(--ink-4)">${apt.tier} 단지</span>
+            </div>
+            <div class="metric-card__name">${apt.name}</div>
+            <div class="metric-card__row">
+              <span>현재가 (3개월 평균)</span>
+              <span class="metric-card__val">${fmtPrice(apt.current)}</span>
+            </div>
+            <div class="metric-card__row">
+              <span>2021 고점 대비</span>
+              <span class="metric-card__val ${apt.recovery != null ? (apt.recovery >= 0 ? 'pos' : 'neg') : ''}">${fmtPct(apt.recovery)}</span>
+            </div>
+            <div class="metric-card__row">
+              <span>2022 저점 대비</span>
+              <span class="metric-card__val ${apt.rise != null ? (apt.rise >= 0 ? 'pos' : 'neg') : ''}">${fmtPct(apt.rise)}</span>
+            </div>
+            <div class="metric-card__row">
+              <span>데이터 개월 수</span>
+              <span class="metric-card__val">${apt.months}개월</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+
+      <!-- 상관계수 -->
+      <div class="corr-box">
+        <div class="corr-box__title">Synchronization Analysis — 단지 간 가격 상관계수 (Pearson r)</div>
+        <div class="corr-grid">
+          <div class="corr-item">
+            <div class="corr-item__period">동조화 시기 (2017 – 2019)</div>
+            <div class="corr-item__value sync">${fmtCorr(metrics.corr17_19)}</div>
+            <div class="corr-item__desc">r → 1.0 일수록 동반 상승</div>
+          </div>
+          <div class="corr-item">
+            <div class="corr-item__period">디커플링 시기 (2022 – 현재)</div>
+            <div class="corr-item__value decouple">${fmtCorr(metrics.corr22_now)}</div>
+            <div class="corr-item__desc">r 하락 = 대장·비대장 격차 심화</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 단지별 데이터 테이블 -->
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>단지명</th>
+              <th>구분</th>
+              <th class="num">현재가</th>
+              <th class="num">2021 고점</th>
+              <th class="num">2022 저점</th>
+              <th class="num">고점 회복률</th>
+              <th class="num">저점 대비 상승</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${metrics.aptMetrics.map(apt => `
+              <tr>
+                <td><strong>${apt.name}</strong></td>
+                <td><span class="tier-tag ${apt.tier === '대장' ? 'tier-tag--flagship' : 'tier-tag--non'}">${apt.tier}</span></td>
+                <td class="num">${fmtPrice(apt.current)}</td>
+                <td class="num">${fmtPrice(apt.peak)}</td>
+                <td class="num">${fmtPrice(apt.bottom)}</td>
+                <td class="num" style="color:${apt.recovery != null ? (apt.recovery >= 0 ? 'var(--red)' : 'var(--blue)') : 'inherit'}">${fmtPct(apt.recovery)}</td>
+                <td class="num" style="color:${apt.rise != null ? (apt.rise >= 0 ? 'var(--red)' : 'var(--blue)') : 'inherit'}">${fmtPct(apt.rise)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  `;
+
+  // DOM 삽입 후 차트 렌더
+  requestAnimationFrame(() => renderCharts(rk, metrics));
+}
+
+/* ==========================================
+   차트 렌더링
+   ========================================== */
+
+// 단지별 색상
+const SERIES_COLORS = [
+  { line: '#c8201c', fill: 'rgba(200,32,28,0.06)' },  // 대장 (레드)
+  { line: '#1e4a8c', fill: 'rgba(30,74,140,0.06)'  }, // 비대장1 (블루)
+  { line: '#b8923a', fill: 'rgba(184,146,58,0.06)' }, // 비대장2 (골드)
+];
+
+// 공통 Chart.js 옵션 빌더
+function buildOptions(labels, tooltipSuffix) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    animation: { duration: 400 },
+    plugins: {
+      legend: {
+        position: 'top',
+        align: 'start',
+        labels: {
+          font:     { family: "'JetBrains Mono', monospace", size: 10 },
+          color:    '#5a5450',
+          boxWidth: 14, boxHeight: 2, padding: 10,
+          usePointStyle: false,
+        },
+      },
+      tooltip: {
+        backgroundColor: '#0a0a0a',
+        titleFont: { family: "'JetBrains Mono', monospace", size: 10 },
+        bodyFont:  { family: "'JetBrains Mono', monospace", size: 11 },
+        padding:   10,
+        callbacks: {
+          title: items => fmtYm(labels[items[0].dataIndex] || ''),
+          label: item  => ` ${item.dataset.label}: ${item.raw != null ? fmtPrice(item.raw) : '—'}`,
+        },
+      },
+    },
+    scales: {
+      x: {
+        grid:  { color: 'rgba(10,10,10,0.05)', drawBorder: false },
+        ticks: {
+          font:          { family: "'JetBrains Mono', monospace", size: 9 },
+          color:         '#8a8070',
+          maxTicksLimit: 9,
+          maxRotation:   0,
+          // 연도 첫 달(xx01)만 연도 표기
+          callback(val) {
+            const lbl = this.getLabelForValue(val);
+            return lbl && lbl.endsWith('.01') ? lbl.slice(0, 4) : '';
+          },
+        },
+      },
+      y: {
+        grid:  { color: 'rgba(10,10,10,0.05)', drawBorder: false },
+        ticks: {
+          font:     { family: "'JetBrains Mono', monospace", size: 9 },
+          color:    '#8a8070',
+          callback: v => toUk(v) + '억',
+        },
+      },
+    },
+  };
+}
+
+function renderCharts(rk, metrics) {
+  if (!metrics) return;
+
+  const labels = metrics.allMonths.map(fmtYm);
+
+  // ── 시세 추이 차트 ──────────────────────
+  const trendCtx = document.getElementById('chartTrend');
+  if (trendCtx) {
+    state.charts.trend = new Chart(trendCtx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: metrics.aptSeries.map((apt, i) => ({
+          label:           apt.name,
+          data:            apt.series,
+          borderColor:     SERIES_COLORS[i % SERIES_COLORS.length].line,
+          backgroundColor: 'transparent',
+          borderWidth:     apt.tier === '대장' ? 2.5 : 1.5,
+          pointRadius:     0,
+          pointHoverRadius: 4,
+          tension:         0.25,
+          spanGaps:        true,
+        })),
+      },
+      options: buildOptions(metrics.allMonths, '만원'),
+    });
+  }
+
+  // ── 격차 추이 차트 ──────────────────────
+  const gapCtx = document.getElementById('chartGap');
+  if (gapCtx) {
+    state.charts.gap = new Chart(gapCtx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label:           '격차 (대장 − 비대장 평균)',
+          data:            metrics.gapSeries,
+          borderColor:     '#1e4a8c',
+          backgroundColor: 'rgba(30,74,140,0.10)',
+          fill:            true,
+          borderWidth:     2,
+          pointRadius:     0,
+          pointHoverRadius: 4,
+          tension:         0.25,
+          spanGaps:        true,
+        }],
+      },
+      options: buildOptions(metrics.allMonths, '만원'),
+    });
+  }
+}
+
+/* ==========================================
+   종합 인사이트 테이블
+   ========================================== */
+
+function renderInsights() {
+  const table = document.getElementById('insightsTable');
+  if (!table) return;
+
+  const rows = Object.entries(TARGETS).map(([rk, region]) => ({
+    rk, region, m: calcMetrics(rk),
+  }));
+
+  const maxGap = Math.max(0, ...rows.map(r => r.m?.currentGap || 0));
+
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>권역</th>
+        <th>대장 단지</th>
+        <th class="num">현재 격차</th>
+        <th class="num">고점 회복률</th>
+        <th class="num">저점 대비 상승</th>
+        <th class="num">동조화 r</th>
+        <th class="num">디커플링 r</th>
+        <th style="min-width:90px">격차 규모</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows.map(({ rk, region, m }) => {
+        const fs      = region.apartments.find(a => a.tier === '대장');
+        const gapFrac = maxGap > 0 && m?.currentGap ? m.currentGap / maxGap * 100 : 0;
+        return `
+          <tr onclick="jumpToRegion('${rk}')">
+            <td><strong>${region.label}</strong></td>
+            <td>${fs.name}</td>
+            <td class="num">${m?.currentGap ? fmtPrice(m.currentGap) : '—'}</td>
+            <td class="num" style="color:${m?.recoveryRate != null ? (m.recoveryRate >= 0 ? 'var(--red)' : 'var(--blue)') : 'inherit'}">${fmtPct(m?.recoveryRate)}</td>
+            <td class="num" style="color:${m?.riseFromBottom != null ? (m.riseFromBottom >= 0 ? 'var(--red)' : 'var(--blue)') : 'inherit'}">${fmtPct(m?.riseFromBottom)}</td>
+            <td class="num">${fmtCorr(m?.corr17_19)}</td>
+            <td class="num">${fmtCorr(m?.corr22_now)}</td>
+            <td>
+              <div class="bar-mini">
+                <div class="bar-mini__fill" style="width:${gapFrac.toFixed(1)}%"></div>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('')}
+    </tbody>
+  `;
+}
+
+// 인사이트 테이블 행 클릭 → 해당 권역 탭으로 이동
+function jumpToRegion(rk) {
+  state.activeRegion = rk;
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.textContent.trim() === TARGETS[rk].label);
+  });
+  destroyCharts();
+  renderRegionDetail(rk);
+  document.querySelector('.tabs-section')?.scrollIntoView({ behavior: 'smooth' });
+}
+
+/* ==========================================
+   수동 갱신
+   ========================================== */
+
+async function onRefresh() {
+  localStorage.removeItem(CACHE_KEY);
+  await init();
+}
+
+/* ==========================================
+   메인 실행 함수
+   ========================================== */
+
+async function init() {
+  showLoading();
+
+  try {
+    // ── 캐시 확인 ──────────────────────────
+    const cached = loadCache();
+
+    if (cached) {
+      // 유효한 캐시 사용
+      state.data = cached.data;
+      updateLastUpdated(cached.ts);
+    } else {
+      // 신규 API 호출
+      const freshData = await fetchAllData();
+      state.data = freshData;
+      saveCache(freshData);
+      updateLastUpdated(Date.now());
+    }
+
+    // ── UI 렌더링 ───────────────────────────
+    renderHero();
+    renderTabs();
+    renderRegionDetail(state.activeRegion);
+    renderInsights();
+
+    hideLoading();
+    showMain();
+
+  } catch (err) {
+    console.error('[init] 오류:', err);
+    hideLoading();
+
+    // 만료 캐시라도 폴백 표시
+    const stale = loadStaleCache();
+    if (stale) {
+      state.data = stale.data;
+      updateLastUpdated(stale.ts);
+      renderHero();
+      renderTabs();
+      renderRegionDetail(state.activeRegion);
+      renderInsights();
+      showMain();
+      // 비차단 방식으로 에러 알림
+      document.getElementById('errorBox').style.cssText = 'display:block; margin-bottom:20px';
+      showError(`API 호출 실패 — 이전 캐시 데이터를 표시합니다.\n(캐시 시각: ${new Date(stale.ts).toLocaleString('ko')})\n\n오류: ${err.message}`);
+      return;
+    }
+
+    showError(
+      `API 호출에 실패했습니다.\n\n` +
+      `가능한 원인:\n` +
+      `① CORS 정책 차단 (브라우저 직접 접근 시)\n` +
+      `② API 키 만료 또는 호출 한도 초과\n` +
+      `③ 네트워크 연결 문제\n\n` +
+      `오류 상세: ${err.message}\n\n` +
+      `해결 방법: 아래 트러블슈팅 가이드를 참고하거나,\nGitHub Pages 배포 후 다시 시도해보세요.`
+    );
+  }
+}
+
+// 페이지 로드 시 실행
+window.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
