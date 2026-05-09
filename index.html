@@ -548,6 +548,67 @@
 <div class="container">
 
   <!-- ==========================================
+       메인 랜딩 화면
+       ========================================== -->
+  <div id="landingPage" style="
+    position: fixed; inset: 0; z-index: 9999;
+    background: #0a0a0a;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 0;
+  ">
+    <div style="text-align:center; padding: 20px;">
+      <div style="
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px; letter-spacing: 0.2em;
+        text-transform: uppercase; color: #5a5450;
+        margin-bottom: 24px;
+      ">Real Estate Analytics</div>
+
+      <div style="
+        font-family: 'Noto Serif KR', serif;
+        font-size: clamp(52px, 12vw, 110px);
+        font-weight: 700;
+        color: #f5f3ee;
+        line-height: 1;
+        letter-spacing: -0.03em;
+        margin-bottom: 8px;
+      ">톨이토리</div>
+
+      <div style="
+        font-family: 'JetBrains Mono', monospace;
+        font-size: clamp(11px, 2vw, 13px);
+        color: #5a5450;
+        letter-spacing: 0.08em;
+        margin-bottom: 60px;
+      ">부동산 실시간 가격 모니터링</div>
+
+      <button onclick="enterDashboard()" style="
+        background: none;
+        border: 1px solid #f5f3ee;
+        color: #f5f3ee;
+        font-family: 'Noto Serif KR', serif;
+        font-size: 16px;
+        font-weight: 500;
+        letter-spacing: 0.12em;
+        padding: 16px 48px;
+        cursor: pointer;
+        transition: all 0.3s;
+      " onmouseover="this.style.background='#f5f3ee'; this.style.color='#0a0a0a';"
+         onmouseout="this.style.background='none'; this.style.color='#f5f3ee';">
+        모니터링
+      </button>
+    </div>
+
+    <div style="
+      position: absolute; bottom: 28px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; color: #3a3a3a;
+      letter-spacing: 0.08em;
+    ">DATA: 국토교통부 실거래가 공개시스템</div>
+  </div>
+
+  <!-- ==========================================
        헤더
        ========================================== -->
   <header class="header">
