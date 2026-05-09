@@ -636,7 +636,6 @@
         <div>데이터 출처: <a href="https://rtms.molit.go.kr" target="_blank" rel="noopener">국토교통부 실거래가 공개시스템</a></div>
         <div>갱신 주기: 매월 말일 기준 (API 제공 기준)</div>
         <div>분석 기준: 전용면적 80–90㎡, 2017년 1월 ~ 현재</div>
-        <div style="margin-top:6px; color: var(--ink-4)">본 자료는 참고 목적이며 투자 조언이 아닙니다.</div>
       </div>
       <div>
         <div class="footer__brand-label">Operated By</div>
@@ -669,11 +668,13 @@ const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24시간 (ms)
 const API_DELAY_MS = 80;
 const START_YM     = '201901'; // 시작 연도 (2019~현재 = 약 88개월 × 5권역 = 440회)
 
-// CORS 프록시 목록 (직접 → allorigins → corsproxy 순 시도)
+// CORS 프록시 목록 — 시작 시 가장 빠른 프록시 자동 선택
 const CORS_PROXIES = [
-  '',                                    // 0: 직접 호출
-  'https://api.allorigins.win/raw?url=', // 1: allorigins 프록시
-  'https://corsproxy.io/?',             // 2: corsproxy 프록시
+  '',                                         // 0: 직접 호출
+  'https://corsproxy.io/?',                  // 1: corsproxy
+  'https://api.allorigins.win/raw?url=',     // 2: allorigins
+  'https://thingproxy.freeboard.io/fetch/',  // 3: thingproxy
+  'https://api.codetabs.com/v1/proxy?quest=',// 4: codetabs
 ];
 
 /* ==========================================
@@ -959,7 +960,30 @@ async function fetchMonth(lawdCd, dealYmd) {
    전체 데이터 수집
    ========================================== */
 
+// 시작 시 가장 빠른 프록시 자동 탐색 (병렬 경쟁)
+async function findWorkingProxy() {
+  document.getElementById('loadMsg').textContent = '프록시 연결 테스트 중...';
+  const testUrl = buildApiUrl('11710', '202001', false);
+  try {
+    const idx = await Promise.any(
+      CORS_PROXIES.map(async (_, i) => {
+        const resp = await fetch(withProxy(testUrl, i), { signal: AbortSignal.timeout(8000) });
+        const text = await resp.text();
+        if (!text.includes('<')) throw new Error('invalid');
+        return i;
+      })
+    );
+    console.log(`[프록시] #${idx} 선택됨:`, CORS_PROXIES[idx] || '직접');
+    return idx;
+  } catch {
+    return 0; // 모두 실패해도 일단 직접 호출 시도
+  }
+}
+
 async function fetchAllData() {
+  // 먼저 작동하는 프록시 찾기
+  state.activeProxy = await findWorkingProxy();
+
   const months     = rangeMonths(START_YM, nowYm());
   const regionKeys = Object.keys(TARGETS);
 
@@ -1677,4 +1701,3 @@ window.addEventListener('DOMContentLoaded', init);
 </script>
 </body>
 </html>
-
