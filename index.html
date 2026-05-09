@@ -302,7 +302,7 @@
     }
     @media (max-width: 680px) { .charts-grid { grid-template-columns: 1fr; } }
 
-    .chart-card {
+    .chart-card { overflow: hidden;
       background: var(--bg-card);
       border: 1px solid var(--rule-dark);
       padding: 18px 18px 14px;
@@ -319,7 +319,7 @@
 
     .chart-card__title { font-size: 13px; font-weight: 600; margin-bottom: 14px; }
 
-    .chart-card canvas { display: block; }
+    .chart-card canvas { display: block; height: 280px !important; max-height: 280px !important; }
 
     /* 지표 카드 */
     .metrics-grid {
@@ -1459,6 +1459,7 @@ function buildOptions(labels, tooltipSuffix) {
   return {
     responsive: true,
     maintainAspectRatio: false,
+      aspectRatio: undefined,
     interaction: { mode: 'index', intersect: false },
     animation: { duration: 400 },
     plugins: {
